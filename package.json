@@ -2,9 +2,9 @@
   "name": "solana",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.mjs",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node server.mjs"
   },
   "keywords": [],
   "author": "",
@@ -12,8 +12,12 @@
   "dependencies": {
     "@solana/web3.js": "^1.91.8",
     "bip39": "^3.1.0",
+    "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "firebase": "^10.11.1",
+    "firebase-admin": "^12.1.0",
+    "http": "^0.0.1-security",
     "micro-ed25519-hdkey": "^0.1.2"
   }
 }
