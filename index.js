@@ -4,49 +4,49 @@ const { HDKey } = require("micro-ed25519-hdkey");
 const bip39 = require("bip39");
 const http = require("http");
 const dotenv = require("dotenv");
-const { getProfile, updateData,Inprompt,transactions } = require("./firebase.js");
-dotenv.config();
 const cors = require('cors');
-const { Transaction } = require("firebase-admin/firestore");
+const { getProfile, updateData, Inprompt, transactions } = require("./firebase.js");
 
+dotenv.config();
 
 const app = express();
 const port = 8000;
 
-app.use(cors());
-
+app.use(cors({
+  origin: 'https://prompt-expert.netlify.app', // Allow requests from this origin
+}));
 
 app.get('/', (req, res) => {
   res.send('Welcome to my server!');
 });
 
 app.get("/trans", async (req, res) => {
-  const uid=req.query.uid;
-  const data=await transactions(uid);
-  console.log('Transcations data');
+  const uid = req.query.uid;
+  const data = await transactions(uid);
+  console.log('Transactions data');
   console.log(data);
   res.send(data);
 });
 
 app.get("/inprompt", async (req, res) => {
-    const uid = req.query.uid;
-    const response=await Inprompt(uid);
+  const uid = req.query.uid;
+  const response = await Inprompt(uid);
   res.send(response);
 });
 
 // get the user profile
 app.get("/profile", async (req, res) => {
-    const uid = req.query.uid;
-    const data=await getProfile(uid);
-    res.send(data);
+  const uid = req.query.uid;
+  const data = await getProfile(uid);
+  res.send(data);
 });
 
 // create a new wallet
 app.get("/wallet", (req, res) => {
-  const uid=req.query.uid;
-    console.log(uid);
-     updateData(uid);
-    res.send("thanks");
+  const uid = req.query.uid;
+  console.log(uid);
+  updateData(uid);
+  res.send("thanks");
 });
 
 app.listen(port, () => {
