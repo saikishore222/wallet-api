@@ -26,7 +26,6 @@ const { getToken } = require('firebase/app-check');
 dotenv.config();
 
 // Verify the MNEMONIC is loaded
-console.log("Environment Variables Loaded:", process.env);
 console.log("Mnemonic from .env:", process.env.MNEMONIC);
 // Initialize Firebase Admin SDK
 const serviceAccount = JSON.parse(fs.readFileSync('./service_account.json', 'utf-8'));
@@ -162,6 +161,15 @@ const Inprompt = async (uid) => {
 
 const getProfile = async (uid) => {
   const user = await admin.auth().getUser(uid);
+  const users= await admin.auth().listUsers();
+  console.log(users.users.length);
+  let i=0;
+  users.users.forEach(user => {
+    i=i+1;
+    console.log(i);
+    console.log(user.displayName);
+    console.log(user.customClaims);
+  });
     console.log(user.displayName);
     console.log(user.email);
     console.log(user.customClaims.wallet);
@@ -212,9 +220,8 @@ const updateData = async (uid) => {
     const listUsers = await admin.auth().listUsers();
     const index = listUsers.users.length;
     const data = await admin.auth().getUser(uid);
-    console.log(data.customClaims.wallet);
 
-    if (data.customClaims.wallet) {
+    if (data.customClaim) {
       return;
     }
 

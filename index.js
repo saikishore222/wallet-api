@@ -12,8 +12,16 @@ dotenv.config();
 const app = express();
 const port = 8000;
 
+const allowedOrigins = ['http://localhost:3000', 'https://prompt-expert.netlify.app'];
+
 app.use(cors({
-  origin: 'https://prompt-expert.netlify.app', // Allow requests from this origin
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  }
 }));
 
 app.get('/', (req, res) => {
