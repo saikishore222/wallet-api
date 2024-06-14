@@ -5,7 +5,8 @@ const bip39 = require("bip39");
 const http = require("http");
 const dotenv = require("dotenv");
 const cors = require('cors');
-const { getProfile, updateData, Inprompt, transactions } = require("./firebase.js");
+const cron = require('node-cron');
+const { getProfile, updateData, Inprompt, transactions, processPayment } = require("./firebase.js");
 
 dotenv.config();
 
@@ -36,6 +37,13 @@ app.get("/trans", async (req, res) => {
   res.send(data);
 });
 
+app.get("/payments", async (req, res) => {
+  const data = await processPayment();
+  console.log('Payments data');
+  console.log(data);
+  res.send(data);
+});
+
 app.get("/inprompt", async (req, res) => {
   const uid = req.query.uid;
   const response = await Inprompt(uid);
@@ -59,6 +67,18 @@ app.get("/wallet", (req, res) => {
 
 app.listen(port, () => {
   console.log(`Server is running on port ${port}`);
+});
+
+// Schedule the processPayment function to run every 48 hours
+cron.schedule('0 */48 * * *', async () => {
+  try {
+    console.log('Running processPayment job...');
+    const data = await processPayment();
+    console.log('Payments data');
+    console.log(data);
+  } catch (error) {
+    console.error('Error running processPayment job:', error);
+  }
 });
 
 module.exports = app;

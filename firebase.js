@@ -8,6 +8,7 @@ const {
   LAMPORTS_PER_SOL,
   clusterApiUrl
 } = require('@solana/web3.js');
+const bs58 = require('bs58');
 const { HDKey } = require('micro-ed25519-hdkey');
 const bip39 = require('bip39');
 const dotenv = require('dotenv');
@@ -49,6 +50,210 @@ const transactions = async (uid) => {
     return { error: error };
   }
 }
+
+const wallet = async (uid) => {
+    const user = await admin.auth().getUser(uid);
+    return user.customClaims.wallet;
+}
+        
+
+const payments = async () => {
+    try {
+        // Get the current timestamp in milliseconds
+        const nowMillis = Date.now();
+        console.log('Current Timestamp (milliseconds):', nowMillis);
+  
+        // Calculate the timestamp for 48 hours ago in milliseconds
+        const fortyEightHoursAgoMillis = nowMillis - 48 * 60 * 60 * 1000;
+        console.log('48 Hours Ago Timestamp (milliseconds):', fortyEightHoursAgoMillis);
+  
+        // Reference to the messages collection in the Memes channel
+        const messagesRef = db.collection('channels').doc('Memes').collection('messages');
+      
+        // Query to get messages from the last 48 hours where activity is true
+        const orderedMessagesQuery = messagesRef
+            .where('timestamp', '>=', fortyEightHoursAgoMillis)
+            .where('activity', '==', true)
+            .orderBy('timestamp', 'desc');
+  
+        // Execute the query
+        const snapshot = await orderedMessagesQuery.get();
+  
+        // Log the size of the snapshot
+        console.log('Number of documents retrieved:', snapshot.size);
+  
+        // Sets to store unique UIDs for participants and bonus
+        const participantsSet = new Set();
+        const bonusSet = new Set();
+  
+        // Extract messages data and their comments
+        const messagesWithComments = [];
+        for (const doc of snapshot.docs) {
+            const messageData = doc.data();
+            const commentsSnapshot = await doc.ref.collection('comments').get();
+            const comments = commentsSnapshot.docs.map(commentDoc => {
+                const commentData = commentDoc.data();
+                // Check if the comment has an imageUrl and ignore it if it does
+                if (!commentData.imageUrl) {
+                    // Check the value of CImg and store UID accordingly
+                    if (commentData.CImg === 0) {
+                        participantsSet.add(commentData.uid);
+                    } else if (commentData.CImg > 0) {
+                        bonusSet.add(commentData.uid);
+                    }
+                }
+                return commentData;
+            });
+            messageData.comments = comments;
+            messagesWithComments.push(messageData);
+        }
+  
+        // Convert sets to arrays
+        const participants = Array.from(participantsSet);
+        const bonus = Array.from(bonusSet);
+  
+        // Remove UIDs from participants that are also in bonus
+        const finalParticipants = participants.filter(uid => !bonusSet.has(uid));
+  
+        // Get profile data for participants and bonus UIDs
+        const participantsData = await getWallets(finalParticipants);
+        const bonusData = await getWallets(bonus);
+        console.log('Participants:', participantsData);
+        console.log('Bonus:', bonusData);  
+        console.log('Messages:', messagesWithComments);
+       // return in the json format
+        return [messagesWithComments, participantsData, bonusData];
+    } catch (error) {
+        console.error('Error fetching messages:', error);
+        return { error: error.message };
+    }
+}
+
+  
+  
+ const getWallets = async (uids) => {
+        const wallets = [];
+        for (const uid of uids) {
+            //call wallet function
+            const add = await wallet(uid);
+          wallets.push(add);
+        }
+        return wallets;
+      }
+
+const processPayment = async () => 
+{
+    const [messages, participants, bonus] = await payments();
+    const ar=[];
+    //load solana wallet using private key
+    const privateKey="b4Go5JqCAagBUizzQ1aUuXvtVJVvEBNPKbTowqw47LXuzMtHZD4RAMvpaXuDFXPwnoAayttQ5tEiTE2mju3bBLL";
+    let secretKey=bs58.decode(privateKey);
+    const sender = Keypair.fromSecretKey(secretKey);
+    console.log(sender.publicKey.toString());
+    console.log(sender.secretKey.toString());
+    console.log(sender.secretKey);
+    const connection = new Connection("https://api.devnet.solana.com", "confirmed");
+    // now iterate participants and bonus and send sol to them
+    for (const participant of participants) {
+        const response=await SendUsdc(participant, sender, connection); 
+        //create a json object
+        const obj = { sig: response.sig, wallet: response.wallet,sender:sender.publicKey.toString(),receiver:participant,message:"Prompt suggestion Payment" };
+        ar.push(obj);
+    }
+    for (const bon of bonus) 
+    {
+        const response=await SendUsdc(bon, sender, connection);
+        //create a json object
+        const obj = { sig: response.sig, wallet: response.wallet,sender:sender.publicKey.toString(),receiver:bon,message:"Prompt suggestion Payment" };
+        ar.push(obj);
+    }
+    return ar;
+}
+
+const SendUsdc = async (Address,sender,connection) =>
+{
+    const toWallet = new PublicKey(Address);
+        console.log(toWallet);
+        console.log(sender.publicKey.toString());
+        const MINT = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr");
+        
+        const senderTokenAccountAddress = await getAssociatedTokenAddress(
+          MINT,
+          sender.publicKey
+        );
+        console.log(senderTokenAccountAddress);
+    
+        try{ await getAccount(
+          connection,
+          senderTokenAccountAddress,
+          "confirmed",
+          TOKEN_PROGRAM_ID
+        ) } catch (e) {
+            return { error: "Sender account not found" };
+        }
+    
+        const receiverTokenAccountAddress = await getAssociatedTokenAddress(
+          MINT,
+          toWallet
+        );
+        console.log(receiverTokenAccountAddress);
+    
+        
+    
+        const transaction = new Transaction();
+    
+        try {
+          await getAccount(
+            connection,
+            receiverTokenAccountAddress,
+            "confirmed",
+            TOKEN_PROGRAM_ID
+          );
+        } catch (e) {
+          if (e.name === "TokenAccountNotFoundError") {
+            const createAccountInstruction = createAssociatedTokenAccountInstruction(
+              sender.publicKey,
+              receiverTokenAccountAddress,
+              toWallet,
+              MINT,
+              TOKEN_PROGRAM_ID,
+              ASSOCIATED_TOKEN_PROGRAM_ID
+            );
+            transaction.add(createAccountInstruction);
+          } else {
+            throw e;
+          }
+        }
+    
+        const transferInstruction = createTransferInstruction(
+          senderTokenAccountAddress,
+          receiverTokenAccountAddress,
+          sender.publicKey,
+          1000000
+        );
+    
+        transaction.add(transferInstruction);
+    
+        console.log("kishore");
+    
+        try {
+          const signature = await sendAndConfirmTransaction(
+            connection,
+            transaction,
+            [sender]
+          );
+    
+          console.log("Transaction Signature", signature);
+          return { sig: signature, wallet: sender.publicKey.toString() };
+        } catch (error) {
+          if (error) {
+            return { error: "Insufficient funds" };
+          } else {
+            throw error;
+          }
+        }
+}
+      
 
 // Inprompt
 const Inprompt = async (uid) => {
@@ -242,4 +447,4 @@ const updateData = async (uid) => {
   }
 }
 
-module.exports = { updateData, getProfile, Inprompt, transactions };
+module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment };

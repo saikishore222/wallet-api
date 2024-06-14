@@ -19,6 +19,7 @@
     "firebase": "^10.11.1",
     "firebase-admin": "^12.1.0",
     "http": "^0.0.1-security",
-    "micro-ed25519-hdkey": "^0.1.2"
+    "micro-ed25519-hdkey": "^0.1.2",
+    "node-cron": "^3.0.3"
   }
 }
