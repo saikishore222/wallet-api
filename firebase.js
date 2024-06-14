@@ -24,6 +24,7 @@ const {
 } = require('@solana/spl-token');
 const fs = require('fs');
 const { getToken } = require('firebase/app-check');
+const { addDoc } = require('firebase/firestore');
 dotenv.config();
 
 // Verify the MNEMONIC is loaded
@@ -36,6 +37,34 @@ admin.initializeApp({
 });
 
 const db = admin.firestore();
+
+const posts = async () => {
+    const messagesRef = db.collection('channels').doc('Memes').collection('messages');
+    const snapshot = await messagesRef.get();
+
+    const batch = db.batch(); // Use a batch to perform atomic writes
+
+    snapshot.forEach(doc => {
+        const data = doc.data();
+        const updateData = {};
+        if (!data.hasOwnProperty('activity')) {
+            updateData.activity = false; // Default value for activity
+        }
+
+        if (!data.hasOwnProperty('payment')) {
+            updateData.payment = false; // Default value for payment
+        }
+
+        if (Object.keys(updateData).length > 0) {
+            const docRef = messagesRef.doc(doc.id);
+            batch.update(docRef, updateData);
+        }
+    });
+
+    // Commit the batch
+    await batch.commit();
+    console.log('Documents updated successfully');
+};
 
 const transactions = async (uid) => {
   try {
@@ -51,10 +80,20 @@ const transactions = async (uid) => {
   }
 }
 
-const wallet = async (uid) => {
-    const user = await admin.auth().getUser(uid);
-    return user.customClaims.wallet;
+const UserRewards = async (uid) => {
+    try {
+        const data = await db.collection('rewards').doc(uid).collection('user_rewards').get();
+        const rewards = [];
+        data.forEach(doc => {
+            rewards.push(doc.data());
+        });
+        return rewards;
+    } catch (error) {
+        console.error('Error fetching user data:', error);
+        return { error: error };
+    }
 }
+
         
 
 const payments = async () => {
@@ -74,6 +113,7 @@ const payments = async () => {
         const orderedMessagesQuery = messagesRef
             .where('timestamp', '>=', fortyEightHoursAgoMillis)
             .where('activity', '==', true)
+            .where('payment', '==', false)
             .orderBy('timestamp', 'desc');
   
         // Execute the query
@@ -82,68 +122,143 @@ const payments = async () => {
         // Log the size of the snapshot
         console.log('Number of documents retrieved:', snapshot.size);
   
-        // Sets to store unique UIDs for participants and bonus
-        const participantsSet = new Set();
-        const bonusSet = new Set();
+        // Objects to store unique UIDs for participants and bonus
+        const participants = {};
+        const bonus = {};
   
         // Extract messages data and their comments
         const messagesWithComments = [];
         for (const doc of snapshot.docs) {
             const messageData = doc.data();
+            console.log(doc.id);
+            console.log('Message Data:', messageData);
+            const mdata = { id: doc.id, userName: messageData.userName, text: messageData.text };
             const commentsSnapshot = await doc.ref.collection('comments').get();
             const comments = commentsSnapshot.docs.map(commentDoc => {
                 const commentData = commentDoc.data();
                 // Check if the comment has an imageUrl and ignore it if it does
-                if (!commentData.imageUrl) {
+                if (!commentData.imageUrl && commentData.sender !== messageData.userName) {
                     // Check the value of CImg and store UID accordingly
-                    if (commentData.CImg === 0) {
-                        participantsSet.add(commentData.uid);
+                    if (commentData.CImg === 0 ) {
+                        if (!participants[commentData.uid]) {
+                            participants[commentData.uid] = [];
+                        }
+                        participants[commentData.uid].push({prompt:commentData.text, name: messageData.userName});
                     } else if (commentData.CImg > 0) {
-                        bonusSet.add(commentData.uid);
+                        if (!bonus[commentData.uid]) {
+                            bonus[commentData.uid] = [];
+                        }
+                        bonus[commentData.uid].push({prompt:commentData.text, name: messageData.userName});
                     }
                 }
-                return commentData;
+                const cData = {
+                    id: commentDoc.id,
+                    prompt: commentData.text,
+                    name: commentData.sender,
+                    ImageGenerated: commentData.CImg,
+                    uid: commentData.uid
+                };
+                return cData;
             });
-            messageData.comments = comments;
-            messagesWithComments.push(messageData);
+            mdata.comments = comments;
+            messagesWithComments.push(mdata);
         }
+
+        console.log('Participants:', participants);
+        console.log('Bonus:', bonus);
   
-        // Convert sets to arrays
-        const participants = Array.from(participantsSet);
-        const bonus = Array.from(bonusSet);
-  
-        // Remove UIDs from participants that are also in bonus
-        const finalParticipants = participants.filter(uid => !bonusSet.has(uid));
-  
-        // Get profile data for participants and bonus UIDs
-        const participantsData = await getWallets(finalParticipants);
+
+        // Remove keys from participants if they are present in bonus
+        for (const uid in bonus) {
+            if (participants[uid]) {
+                delete participants[uid];
+            }
+        }
+
+        // Log the final objects
+        console.log('Participants:', participants);
+        console.log('Bonus:', bonus);
+
+        const participantsData = await getWallets(participants);
         const bonusData = await getWallets(bonus);
         console.log('Participants:', participantsData);
         console.log('Bonus:', bonusData);  
         console.log('Messages:', messagesWithComments);
        // return in the json format
-        return [messagesWithComments, participantsData, bonusData];
+        return [messagesWithComments, participantsData, bonusData, participants, bonus];
     } catch (error) {
         console.error('Error fetching messages:', error);
         return { error: error.message };
     }
-}
-
-  
+}  
   
  const getWallets = async (uids) => {
+        //uids looks like 
         const wallets = [];
-        for (const uid of uids) {
-            //call wallet function
-            const add = await wallet(uid);
-          wallets.push(add);
+        for(const uid in uids) {
+            const user = await admin.auth().getUser(uid);
+            wallets.push({ id: uid, wallet: user.customClaims.wallet });
         }
         return wallets;
       }
+  const setPayment = async (messages) => 
+  {
+    const batch = db.batch();
+    //create rewards collection if its doesn't exist and keep the document id as 
+    for (const message of messages) {
+        const messageRef = db.collection('channels').doc('Memes').collection('messages').doc(message.id);
+        batch.update(messageRef, { payment: true });
+    }
+    await batch.commit();
+    console.log('Payments updated successfully');
+  }
+
+  const rewards = async (uids, trans, type) => {
+    console.log("Rewards");
+    console.log(uids);
+    console.log(trans);
+    
+    // Create a batch for Firestore
+    const batch = db.batch();
+    
+    let c = 0;
+    for (const uid in uids) {
+        if (uids.hasOwnProperty(uid)) {
+            const promptObj = uids[uid][0];
+            console.log(promptObj);
+            
+            // Reference to the user's document in the rewards collection
+            const userRef = db.collection('rewards').doc(uid);
+            
+            // Reference to the rewards sub-collection inside the user's document
+            const rewardsSubCollectionRef = userRef.collection('user_rewards').doc();
+            
+            // Get the signature
+            const sig = trans[c].sig;
+            
+            // Prepare the data
+            const rewardData = {
+                prompt: promptObj.prompt,
+                to: promptObj.name,
+                sig: sig,
+                type: type == 1 ? "Participant" : "Bonus"
+            };
+            
+            // Add the document to the batch
+            batch.set(rewardsSubCollectionRef, rewardData);
+            
+            c += 1;
+        }
+    }
+
+    // Commit the batch
+    await batch.commit();
+    console.log('Rewards updated successfully');
+};
 
 const processPayment = async () => 
 {
-    const [messages, participants, bonus] = await payments();
+    const [messages,partWallets,bonusWallets, participants, bonus] = await payments();
     const ar=[];
     //load solana wallet using private key
     const privateKey="b4Go5JqCAagBUizzQ1aUuXvtVJVvEBNPKbTowqw47LXuzMtHZD4RAMvpaXuDFXPwnoAayttQ5tEiTE2mju3bBLL";
@@ -154,19 +269,27 @@ const processPayment = async () =>
     console.log(sender.secretKey);
     const connection = new Connection("https://api.devnet.solana.com", "confirmed");
     // now iterate participants and bonus and send sol to them
-    for (const participant of participants) {
-        const response=await SendUsdc(participant, sender, connection); 
+    if(partWallets.length>0){
+    for (const participant of partWallets) {
+        const response=await SendUsdc(participant.wallet, sender, connection); 
         //create a json object
         const obj = { sig: response.sig, wallet: response.wallet,sender:sender.publicKey.toString(),receiver:participant,message:"Prompt suggestion Payment" };
         ar.push(obj);
     }
-    for (const bon of bonus) 
+    await rewards(participants,ar,1);
+    }
+    if(bonusWallets.length>0){
+    for (const bon of bonusWallets) 
     {
-        const response=await SendUsdc(bon, sender, connection);
+        const response=await SendUsdc(bon.wallet, sender, connection);
         //create a json object
         const obj = { sig: response.sig, wallet: response.wallet,sender:sender.publicKey.toString(),receiver:bon,message:"Prompt suggestion Payment" };
         ar.push(obj);
     }
+    console.log(ar);
+    await rewards(bonus,ar,2);
+    }
+    await setPayment(messages);
     return ar;
 }
 
@@ -447,4 +570,4 @@ const updateData = async (uid) => {
   }
 }
 
-module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment };
+module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment,posts,UserRewards};

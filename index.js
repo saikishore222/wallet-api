@@ -6,7 +6,7 @@ const http = require("http");
 const dotenv = require("dotenv");
 const cors = require('cors');
 const cron = require('node-cron');
-const { getProfile, updateData, Inprompt, transactions, processPayment } = require("./firebase.js");
+const { getProfile, updateData, Inprompt, transactions, processPayment,posts, payments,UserRewards } = require("./firebase.js");
 
 dotenv.config();
 
@@ -29,10 +29,24 @@ app.get('/', (req, res) => {
   res.send('Welcome to my server!');
 });
 
+app.get("/posts", async (req, res) => {
+  await posts();
+  console.log('Posts data');
+  res.send("Posts data");
+});
+
 app.get("/trans", async (req, res) => {
   const uid = req.query.uid;
   const data = await transactions(uid);
   console.log('Transactions data');
+  console.log(data);
+  res.send(data);
+});
+
+app.get("/rewards", async (req, res) => {
+  const uid = req.query.uid;
+  const data = await UserRewards(uid);
+  console.log('Rewards data');
   console.log(data);
   res.send(data);
 });
@@ -70,9 +84,9 @@ app.listen(port, () => {
 });
 
 // Schedule the processPayment function to run every 48 hours
-cron.schedule('0 */48 * * *', async () => {
+cron.schedule('0 1 */1 * *', async () => {
   try {
-    console.log('Running processPayment job...');
+    console.log('Running daily processPayment job at 1 AM...');
     const data = await processPayment();
     console.log('Payments data');
     console.log(data);
