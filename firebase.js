@@ -25,6 +25,7 @@ const {
 const fs = require('fs');
 const { getToken } = require('firebase/app-check');
 const { addDoc } = require('firebase/firestore');
+const { type } = require('os');
 dotenv.config();
 
 // Verify the MNEMONIC is loaded
@@ -376,13 +377,21 @@ const SendUsdc = async (Address,sender,connection) =>
           }
         }
 }
-      
+
+   
 
 // Inprompt
 const Inprompt = async (uid) => {
   try {
     const user = await admin.auth().getUser(uid);
     console.log(user);
+    if (user.customClaims.FreeTrail>0) {
+       //I want to reduce the free trails count in user.customClaims.FreeTrail
+      const count = user.customClaims.FreeTrail - 1;
+      await admin.auth().setCustomUserClaims(uid, { wallet:user.customClaims.wallet,index:user.customClaims.index,FreeTrail: count });
+      const msg="you have "+count+" FreeTrails left";
+      return { "message": msg };
+    }
     const seed = bip39.mnemonicToSeedSync(process.env.MNEMONIC, "");
     const hd = HDKey.fromMasterSeed(seed.toString("hex"));
     const path = `m/44'/501'/${user.customClaims.index}'/0'`;
@@ -534,7 +543,6 @@ const getProfile = async (uid) => {
   }
 }
 
-// Function to get the token account balance for a specific token and wa
 
 
 // Retrieve all users

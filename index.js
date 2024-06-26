@@ -6,14 +6,14 @@ const http = require("http");
 const dotenv = require("dotenv");
 const cors = require('cors');
 const cron = require('node-cron');
-const { getProfile, updateData, Inprompt, transactions, processPayment,posts, payments,UserRewards } = require("./firebase.js");
+const { getProfile, updateData, Inprompt, transactions, processPayment,posts, payments,UserRewards,profile } = require("./firebase.js");
 
 dotenv.config();
 
 const app = express();
 const port = 8000;
 
-const allowedOrigins = ['http://localhost:3000', 'https://prompt-expert.netlify.app'];
+const allowedOrigins = ['http://localhost:3000', 'https://prompt-expert.netlify.app', 'https://promptexpert.xyz/'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -25,7 +25,8 @@ app.use(cors({
   }
 }));
 
-app.get('/', (req, res) => {
+
+app.get('/', async (req, res) => {
   res.send('Welcome to my server!');
 });
 
@@ -70,6 +71,7 @@ app.get("/profile", async (req, res) => {
   const data = await getProfile(uid);
   res.send(data);
 });
+
 
 // create a new wallet
 app.get("/wallet", (req, res) => {
