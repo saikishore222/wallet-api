@@ -498,26 +498,18 @@ const Inprompt = async (uid) => {
 
 const getProfile = async (uid) => {
   const user = await admin.auth().getUser(uid);
-  const users= await admin.auth().listUsers();
-  console.log(users.users.length);
-  let i=0;
-  users.users.forEach(user => {
-    i=i+1;
-    console.log(i);
-    console.log(user.displayName);
-    console.log(user.customClaims);
-  });
+  console.log(user);
     console.log(user.displayName);
     console.log(user.email);
     console.log(user.customClaims.wallet);
     console.log(user.photoURL);
 
+  try {
     const url = clusterApiUrl("devnet");
     const connection = new Connection(url);
     const publicKey = new PublicKey(user.customClaims.wallet);
     const balance = await connection.getBalance(publicKey);
     console.log(balance);
-  try {
     // Get USDC balance
     const USDC_MINT = new PublicKey("Gh9ZwEmdLJ8DscKNTkTqPbNwLNNBjuSzaG9Vp2KGtKJr"); // Replace with the actual USDC mint public key
     const account = await connection.getParsedTokenAccountsByOwner(publicKey, {
@@ -537,7 +529,7 @@ const getProfile = async (uid) => {
       email: user.email, 
       wallet: user.customClaims.wallet, 
       photo: user.photoURL, 
-      amount: balance / LAMPORTS_PER_SOL,
+      amount: 0,
       usdc: 0
     };
   }
@@ -567,7 +559,8 @@ const updateData = async (uid) => {
 
     await admin.auth().setCustomUserClaims(uid, {
       wallet: keypair.publicKey.toString(),
-      index: index
+      index: index,
+      FreeTrail:10
     });
 
     console.log('User data updated successfully');
