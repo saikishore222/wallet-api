@@ -557,6 +557,7 @@ const updateData = async (uid) => {
     const keypair = Keypair.fromSeed(hd.derive(path).privateKey);
     console.log(keypair.publicKey.toString());
 
+    //added freetrails to the User
     await admin.auth().setCustomUserClaims(uid, {
       wallet: keypair.publicKey.toString(),
       index: index,
