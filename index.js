@@ -6,7 +6,7 @@ const http = require("http");
 const dotenv = require("dotenv");
 const cors = require('cors');
 const cron = require('node-cron');
-const { getProfile, updateData, Inprompt, transactions, processPayment, posts, payments, UserRewards, profile } = require("./firebase.js");
+const { getProfile, updateData, Inprompt, transactions, processPayment, posts, payments, UserRewards, profile, profileData } = require("./firebase.js");
 
 dotenv.config();
 
@@ -79,6 +79,11 @@ app.get("/wallet", (req, res) => {
   console.log(uid);
   updateData(uid);
   res.send("thanks");
+});
+
+app.get("/data", async (req, res) => {
+  const data = await profileData(); 
+  res.send(data);
 });
 
 app.listen(port, () => {

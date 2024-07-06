@@ -495,6 +495,13 @@ const Inprompt = async (uid) => {
   }
 };
 
+const profileData = async () => {
+  const users= await admin.auth().listUsers();
+  for (const user of users.users) {
+    console.log(user.displayName);
+    console.log(user.customClaims.index);
+  }
+}
 
 const getProfile = async (uid) => {
   const user = await admin.auth().getUser(uid);
@@ -546,7 +553,23 @@ const updateData = async (uid) => {
 
   try {
     const listUsers = await admin.auth().listUsers();
-    const index = listUsers.users.length;
+    //generate random index
+    let index;
+    while (true) {
+    index = Math.floor(Math.random() * 150);
+    //check that index is not already used
+    const c=0;
+    for (const user of listUsers.users) {
+      if (user.customClaims.index === index) {
+        c=1;
+        continue;
+      }
+    }
+    if(c==0)
+    {
+      break;
+    }
+    }
     const data = await admin.auth().getUser(uid);
 
     if (data.customClaim) {
@@ -572,4 +595,4 @@ const updateData = async (uid) => {
   }
 }
 
-module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment,posts,UserRewards};
+module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment,posts,UserRewards,profileData};
