@@ -499,6 +499,8 @@ const profileData = async () => {
   const users= await admin.auth().listUsers();
   for (const user of users.users) {
     console.log(user.displayName);
+    console.log(user.customClaims.wallet);
+    console.log(user.customClaims.FreeTrail);
     console.log(user.customClaims.index);
   }
 }
@@ -553,6 +555,7 @@ const updateData = async (uid) => {
 
   try {
     const listUsers = await admin.auth().listUsers();
+    console.log(listUsers);
     //generate random index
     let index;
     while (true) {
@@ -560,9 +563,14 @@ const updateData = async (uid) => {
     //check that index is not already used
     const c=0;
     for (const user of listUsers.users) {
-      if (user.customClaims.index === index) {
-        c=1;
+      if(user.uid==uid)
+      {
         continue;
+      }
+      if(user.customClaims.index==index)
+      {
+        c=1;
+        break;
       }
     }
     if(c==0)
