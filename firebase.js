@@ -261,7 +261,6 @@ const processPayment = async () =>
 {
     const [messages,partWallets,bonusWallets, participants, bonus] = await payments();
     const ar=[];
-    //load solana wallet using private key
     const privateKey="b4Go5JqCAagBUizzQ1aUuXvtVJVvEBNPKbTowqw47LXuzMtHZD4RAMvpaXuDFXPwnoAayttQ5tEiTE2mju3bBLL";
     let secretKey=bs58.decode(privateKey);
     const sender = Keypair.fromSecretKey(secretKey);
@@ -386,11 +385,14 @@ const Inprompt = async (uid) => {
     const user = await admin.auth().getUser(uid);
     console.log(user);
     if (user.customClaims.FreeTrail>0) {
-       //I want to reduce the free trails count in user.customClaims.FreeTrail
       const count = user.customClaims.FreeTrail - 1;
       await admin.auth().setCustomUserClaims(uid, { wallet:user.customClaims.wallet,index:user.customClaims.index,FreeTrail: count });
       const msg="you have "+count+" FreeTrails left";
       return { "message": msg };
+    }
+    else
+    {
+      return { "message": "You don't have any FreeTrails left" };
     }
     const seed = bip39.mnemonicToSeedSync(process.env.MNEMONIC, "");
     const hd = HDKey.fromMasterSeed(seed.toString("hex"));
