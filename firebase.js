@@ -497,28 +497,63 @@ const Inprompt = async (uid) => {
   }
 };
 
+const createWalletForUser = async (index) => {
+  console.log("index :", index);
+  const mnemonic = process.env.MNEMONIC;
+  if (!mnemonic) {
+    throw new Error("MNEMONIC environment variable is not set.");
+  }
+
+  const seed = bip39.mnemonicToSeedSync(mnemonic, "");
+  const hd = HDKey.fromMasterSeed(seed);
+  const path = `m/44'/501'/${index}'/0'`;
+  const derivedKey = hd.derive(path);
+  const keypair = Keypair.fromSeed(derivedKey.privateKey);
+
+  return keypair.publicKey.toString();
+};
+
+ const CreateWalletForAllUsers = async () => {
+  const usersSnapshot = await db.collection('users').get();
+  const promises = [];
+  let num = 0;
+
+  usersSnapshot.forEach((doc) => {
+    const uid = doc.id;
+    const currentIndex = num; // Capture the current value of num
+    promises.push(createWalletForUser(currentIndex).then(walletInfo => {
+      return db.collection('users').doc(uid).update({
+        wallet: walletInfo,
+        index: currentIndex
+      });
+    }));
+    num += 1;
+  });
+
+  await Promise.all(promises);
+};
+
 const profileData = async () => {
   const users= await admin.auth().listUsers();
   for (const user of users.users) {
     console.log(user.displayName);
-    console.log(user.customClaims.wallet);
-    console.log(user.customClaims.FreeTrail);
-    console.log(user.customClaims.index);
   }
 }
 
 const getProfile = async (uid) => {
-  const user = await admin.auth().getUser(uid);
-  console.log(user);
-    console.log(user.displayName);
-    console.log(user.email);
-    console.log(user.customClaims.wallet);
-    console.log(user.photoURL);
+  const user = await db.collection('users').doc(uid).get();
+  const userData = user.data();
+  console.log(userData);
+    console.log(userData.displayName);
+    console.log(userData.email);
+    console.log(userData.photo);
+    console.log(userData.wallet);
 
   try {
     const url = clusterApiUrl("devnet");
     const connection = new Connection(url);
-    const publicKey = new PublicKey(user.customClaims.wallet);
+
+    const publicKey = new PublicKey(userData.wallet);
     const balance = await connection.getBalance(publicKey);
     console.log(balance);
     // Get USDC balance
@@ -527,19 +562,19 @@ const getProfile = async (uid) => {
       mint: USDC_MINT,
     });
     return { 
-      name: user.displayName, 
-      email: user.email, 
-      wallet: user.customClaims.wallet, 
-      photo: user.photoURL, 
+      name: userData.displayName, 
+      email: userData.email, 
+      wallet: userData.wallet, 
+      photo: userData.photo, 
       amount: balance / LAMPORTS_PER_SOL,
       usdc: account.value[0].account.data.parsed.info.tokenAmount.uiAmount
     };
   } catch (error) {
     return { 
-      name: user.displayName, 
-      email: user.email, 
-      wallet: user.customClaims.wallet, 
-      photo: user.photoURL, 
+      name: userData.displayName, 
+      email: userData.email, 
+      wallet: userData.wallet, 
+      photo: userData.photo, 
       amount: 0,
       usdc: 0
     };
@@ -605,4 +640,4 @@ const updateData = async (uid) => {
   }
 }
 
-module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment,posts,UserRewards,profileData};
+module.exports = { updateData, getProfile, Inprompt, transactions,payments,processPayment,posts,UserRewards,profileData,CreateWalletForAllUsers};
